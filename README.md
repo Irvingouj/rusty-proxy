@@ -19,7 +19,7 @@
 Clone the repo:
 
 ```bash
-git clone https://github.com/yourusername/simple-proxy-rust.git
+git clone https://github.com/Irvingouj/rusty-proxy.git
 ```
 
 Navigate into the directory:
