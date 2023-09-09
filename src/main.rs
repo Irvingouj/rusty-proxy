@@ -1,13 +1,16 @@
 mod errors;
+mod streams;
+mod ssh_stream;
 use errors::ProxyError;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::try_join;
 use url::Url;
+
+use crate::ssh_stream::SSHConfig;
+use crate::streams::get_stream;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    
     start_server_loop().await
 }
 
@@ -15,11 +18,11 @@ async fn start_server_loop() -> Result<(), Box<dyn std::error::Error>>{
     let addr = "127.0.0.1:3000";
     let listener = TcpListener::bind(addr).await?;
     loop {
-        let (mut stream, _) = listener.accept().await?;
+        let (mut listening_stream, _) = listener.accept().await?;
 
         tokio::spawn(async move {
             let mut buf = vec![0u8; 8096];
-            match stream.read(&mut buf).await {
+            match listening_stream.read(&mut buf).await {
                 Ok(bytes_read) if bytes_read == 0 => {
                     eprintln!("Connection closed");
                     return;
@@ -45,11 +48,11 @@ async fn start_server_loop() -> Result<(), Box<dyn std::error::Error>>{
                     dbg!(start, end, String::from_utf8_lossy(&url));
 
                     if &buf[0..7] == b"CONNECT" {
-                        handle_connect_request(stream, &url)
+                        handle_connect_request(listening_stream, &url)
                             .await
                             .unwrap();
                     } else {
-                        handle_http_request(&mut stream, &mut buf, &url)
+                        handle_http_request(&mut listening_stream, &mut buf, &url)
                             .await
                             .unwrap();
                     }
@@ -83,13 +86,8 @@ async fn handle_connect_request(
     incoming_stream.write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n").await?;
     let addr = format!("{}:{}", host, port);
     let mut outgoing_stream = TcpStream::connect(addr).await?;
-    let (mut ri, mut wi) = incoming_stream.split();
-    let (mut ro, mut wo) = outgoing_stream.split();
-    let client_to_server = io::copy(&mut ri, &mut wo);
-    let server_to_client = io::copy(&mut ro, &mut wi);
+    tokio::io::copy_bidirectional(&mut incoming_stream, & mut outgoing_stream).await.unwrap();
     dbg!("tunnel is open");
-    let res = try_join!(client_to_server, server_to_client)?;
-    dbg!(res);
 
     Ok(())
 }
