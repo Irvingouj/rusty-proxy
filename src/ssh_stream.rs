@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use russh::{client, ChannelId};
-use russh_keys::key::{self, parse_public_key, PublicKey};
+use russh_keys::key::PublicKey;
+
+use crate::config_options::SSHConfig;
 
 pub struct Client {}
 
@@ -32,12 +34,6 @@ impl client::Handler for Client {
     }
 }
 
-pub struct SSHConfig {
-    pub username: String,
-    pub password: String,
-    pub ssh_server_address: String,
-    pub russh_config: russh::client::Config,
-}
 
 impl SSHConfig {
     pub fn new() -> Self {

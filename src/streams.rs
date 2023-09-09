@@ -2,7 +2,7 @@ use std::{sync::Arc, net::ToSocketAddrs};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::ssh_stream::{Client, SSHConfig};
+use crate::{ssh_stream::Client, config_options::SSHConfig};
 
 pub enum StreamType {
     SSHTunnel,
