@@ -1,4 +1,4 @@
-# Simple Proxy Server in Rust 🦀
+# Simple HTTP over SSH Proxy Server in Rust 🦀
 
 <div align="center">
   <img src="https://www.rust-lang.org/logos/rust-logo-512x512.png" width="128px"/>
