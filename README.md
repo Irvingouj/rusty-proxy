@@ -10,9 +10,9 @@
 
 - 📡 Handles both HTTP and HTTPS requests.
 - 🚀 High performance due to non-blocking I/O.
-- 💼 Minimal dependencies.
 - 🛠️ Easy to set up and use.
 - ⚙️ Highly configurable.
+- Allow Tunneling over SSH
   
 ## 🏁 Getting Started
 
