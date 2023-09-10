@@ -1,55 +1,73 @@
-use std::{sync::Arc, net::ToSocketAddrs};
+use crate::{
+    config_options::{russh_config_from_referece, Config},
+    ssh_stream::Client,
+};
+use std::time::Duration;
+use tracing::instrument;
 
-use tokio::io::{AsyncRead, AsyncWrite};
-
-use crate::{ssh_stream::Client, config_options::SSHConfig};
-
-pub enum StreamType {
-    SSHTunnel,
-    TCPStream,
-}
-
+// pub enum StreamType {
+//     SSHTunnel,
+//     TCPStream,
+// }
 
 pub trait AsyncReadWrite: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
 impl<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + ?Sized> AsyncReadWrite for T {}
 
-pub async fn get_stream<S: AsyncRead + AsyncWrite + Unpin + 'static, >(
-    stream_type: StreamType,
-    ip_addres: String,
-    ssh_config: Option<SSHConfig>,
-) -> Option<Box<dyn AsyncReadWrite  + Unpin>> {
-    match stream_type {
-        StreamType::SSHTunnel => {
-            let overall_config = ssh_config.expect("ssh config must exist to use ssh stream");
-            let config = overall_config.russh_config;
-            let config = Arc::new(config);
+#[instrument]
+pub async fn get_stream(
+    target_host:&str,
+    target_port:u16,
+    config: &Config,
+) -> Option<Box<dyn AsyncReadWrite + Unpin + Send>> {
+    match config.ssh_config {
+        Some(ref ssh_config) => {
+            let russh_config = russh_config_from_referece(&ssh_config.russh_config);
             let sh = Client {};
 
             // let mut agent = russh_keys::agent::client::AgentClient::connect_env().await?;
             // agent.add_identity(&key, &[]).await?;
-            let mut session =
-                russh::client::connect(config, overall_config.ssh_server_address, sh).await.unwrap();
+            let ssh_sever_address = (
+                ssh_config.ssh_server_address.clone(),
+                ssh_config.ssh_server_port,
+            );
+            let mut session = russh::client::connect(russh_config, ssh_sever_address, sh)
+                .await
+                .unwrap();
             session
-                .authenticate_password(&overall_config.username, &overall_config.password)
-                .await
-                .unwrap();
-            let mut host = ip_addres.to_socket_addrs().unwrap();
-            let address = host.next().unwrap();
-            let channel = session
-                .channel_open_direct_tcpip(address.ip().to_string(),address.port().to_be() as u32, "127.0.0.1", 51111)
+                .authenticate_password(&ssh_config.username, &ssh_config.password)
                 .await
                 .unwrap();
 
-            let stream = channel.into_stream();
-
-            Some(Box::new(stream) as Box<dyn AsyncReadWrite  + Unpin>)
+            log::debug!("About to open channel,address ");
+            let res = tokio::time::timeout(
+                Duration::from_secs(10),
+                session.channel_open_direct_tcpip(
+                    target_host,
+                    target_port as u32,
+                    "127.0.0.1",
+                    51241,
+                ),
+            )
+            .await;
+            match res {
+                Ok(Ok(channel)) => {
+                    log::debug!("Channel opened");
+                    let stream = channel.into_stream();
+                    log::debug!("using ssh stream");
+                    Some(Box::new(stream) as Box<dyn AsyncReadWrite + Unpin + Send>)
+                }
+                _=>panic!("error")
+            }
         }
-        StreamType::TCPStream => match tokio::net::TcpStream::connect(ip_addres).await {
+        None => match tokio::net::TcpStream::connect((target_host.clone(),target_port as u16)).await {
             Err(e) => {
                 println!("{}", e);
                 None
             }
-            Ok(s) => Some(Box::new(s) as Box<dyn AsyncReadWrite  + Unpin>),
+            Ok(s) => {
+                log::debug!("using tcp stream");
+                Some(Box::new(s) as Box<dyn AsyncReadWrite + Unpin + Send>)
+            }
         },
     }
 }

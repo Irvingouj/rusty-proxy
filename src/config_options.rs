@@ -1,18 +1,19 @@
 use serde::Deserialize;
 use serde::Serialize;
 use std::io::Write;
+use std::sync::Arc;
 use std::{
     fs::{self, File},
     path::PathBuf,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct Config {
     pub server: ServerConfig,
     pub ssh_config: Option<SSHConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
@@ -23,6 +24,7 @@ pub struct SSHConfig {
     pub username: String,
     pub password: String,
     pub ssh_server_address: String,
+    pub ssh_server_port:u16,
     #[serde(with = "russh_config_serde")]
     pub russh_config: russh::client::Config,
 }
@@ -96,4 +98,32 @@ pub fn get_config(path: Option<PathBuf>) -> Config {
     log::debug!("Using config: {}", serde_json::to_string_pretty(&config).unwrap());
 
     config
+}
+
+impl Clone for SSHConfig {
+    fn clone(&self) -> Self {
+        let mut russh_config = russh::client::Config::default();
+        russh_config.inactivity_timeout = self.russh_config.inactivity_timeout.clone();
+        SSHConfig {
+            username: self.username.clone(),
+            password: self.password.clone(),
+            ssh_server_address: self.ssh_server_address.clone(),
+            ssh_server_port:self.ssh_server_port.clone(),
+            // Handle russh::client::Config cloning manually.
+            // If russh::client::Config cannot be cloned, you may need to construct a new default instance or handle this some other way.
+            russh_config
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        *self = source.clone()
+    }
+}
+
+
+pub fn russh_config_from_referece(config :&russh::client::Config) -> Arc<russh::client::Config> {
+    return Arc::new(russh::client::Config{
+        inactivity_timeout:config.inactivity_timeout,
+        ..Default::default()
+    });
 }
