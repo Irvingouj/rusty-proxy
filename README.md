@@ -48,6 +48,23 @@ Test the proxy with curl:
 curl -x http://localhost:3000 -k https://www.google.com
 ```
 
+## Example Configuration
+```
+[server]
+host = "127.0.0.1"
+port = 5123
+
+[ssh_config]
+username = "your-ssh-username"
+password = "your-ssh-password"
+ssh_server_address = "ssh-server-address"
+ssh_server_port = 22
+russh_config = 30
+
+```
+
+if ssh_config is present, then it will use ssh tunneling. If you just want to use a simple proxy, only fill up server.
+
 ## 💻 Requirements
 
 - Rust 2018 edition or later.
